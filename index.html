@@ -18,6 +18,17 @@
       --red: #f87171;
       --blue: #60a5fa;
     }
+
+    function syncPathToTab(name) {
+      var path = '/' + name;
+      if (name === 'dashboard') path = '/';
+      if (name === 'characterstudio') path = '/character-studio';
+      if (name === 'agentplayground') path = '/agent-playground';
+      if (name === 'gamedata') path = '/game-data';
+      if (window.location.pathname !== path) {
+        history.replaceState({}, '', path);
+      }
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -230,6 +241,9 @@
         <div class="sidebar-item active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</div>
         <div class="sidebar-item" data-tab="import" onclick="switchTab('import')">📁 Import GDevelop</div>
         <div class="sidebar-item" data-tab="scenes" onclick="switchTab('scenes')">🎬 Scene Viewer</div>
+        <div class="sidebar-item" data-tab="animations" onclick="switchTab('animations')">🎞 Animations</div>
+        <div class="sidebar-item" data-tab="characterstudio" onclick="switchTab('characterstudio')">🧬 Character Studio</div>
+        <div class="sidebar-item" data-tab="agentplayground" onclick="switchTab('agentplayground')">🤖 Agent Playground</div>
         <div class="sidebar-item" data-tab="assets" onclick="switchTab('assets')">🗄 Object Store</div>
         <div class="sidebar-item" data-tab="gamedata" onclick="switchTab('gamedata')">⚔ Game Data</div>
         <div class="sidebar-item" data-tab="characters" onclick="switchTab('characters')">🧙 Characters</div>
@@ -249,6 +263,7 @@
           <h2>Connection Status</h2>
           <div class="status-grid" id="status-grid">
             <div class="status-card"><div class="label">Puter SDK</div><div class="value" id="s-puter">—</div></div>
+            <div class="status-card"><div class="label">Puter AI</div><div class="value" id="s-puterai">—</div></div>
             <div class="status-card"><div class="label">Auth</div><div class="value" id="s-auth">—</div></div>
             <div class="status-card"><div class="label">ObjectStore R2</div><div class="value" id="s-r2">—</div></div>
             <div class="status-card"><div class="label">Game API</div><div class="value" id="s-api">—</div></div>
@@ -334,6 +349,51 @@
           <div id="chars-list"><p style="font-size:13px; color:var(--text-dim);">Sign in to view your characters.</p></div>
         </div>
       </div>
+
+      <!-- Animations Tab -->
+      <div class="tab-content" id="tab-animations">
+        <div class="card">
+          <h2>Animation Library</h2>
+          <p>Live animation extraction from imported game scenes and object storage assets.</p>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn" onclick="loadAnimations()">Refresh Animations</button>
+          </div>
+          <div id="animations-list" style="margin-top:12px;"><p style="font-size:13px; color:var(--text-dim);">No animations loaded yet.</p></div>
+        </div>
+      </div>
+
+      <!-- Character Studio Tab -->
+      <div class="tab-content" id="tab-characterstudio">
+        <div class="card">
+          <h2>Character Studio</h2>
+          <p>Crash-safe character editor with hierarchy + animation binding preview.</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn" onclick="loadCharacters()">Load Characters</button>
+            <button class="btn" onclick="loadAnimations()">Load Animations</button>
+            <button class="btn" onclick="renderCharacterStudio()">Open Studio</button>
+          </div>
+          <div id="character-studio-panel" style="margin-top:12px;">
+            <p style="font-size:13px; color:var(--text-dim);">Select a character and animation to begin.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Playground Tab -->
+      <div class="tab-content" id="tab-agentplayground">
+        <div class="card">
+          <h2>Agent Playground (Real Puter AI)</h2>
+          <p>No mocks. Uses live <code>puter.ai.chat()</code> with real tools for scenes and object storage.</p>
+          <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
+            <input id="agent-model" placeholder="Optional model (leave empty for default)" style="flex:1; min-width:260px; padding:8px; background:#0d0d14; border:1px solid var(--border); color:var(--text); border-radius:6px;" />
+            <button class="btn" onclick="resetAgentChat()">Reset</button>
+          </div>
+          <div id="agent-chat-log" class="log" style="margin-top:12px; max-height:260px;"></div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <textarea id="agent-input" placeholder="Ask the agent to inspect scenes, search assets, or save project notes..." style="flex:1; min-height:84px; padding:10px; background:#0d0d14; border:1px solid var(--border); color:var(--text); border-radius:6px;"></textarea>
+            <button class="btn primary" id="agent-send-btn" onclick="sendAgentMessage()">Send</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -342,11 +402,15 @@
   <script src="js/grudge-objectstore.js"></script>
   <script src="js/grudge-api.js"></script>
   <script src="js/gdevelop-parser.js"></script>
+  <script src="js/grudge-engine-core.js"></script>
+  <script src="js/grudge-agent-playground.js"></script>
   <script src="js/grudge-connector.js"></script>
   <script>
     // ── State ──
     var _gameData = null;
     var _projects = [];
+    var _animations = [];
+    var _agentMessages = [];
 
     // ── Tab switching ──
     function switchTab(name) {
@@ -356,6 +420,7 @@
       if (tab) tab.classList.add('active');
       var item = document.querySelector('.sidebar-item[data-tab="' + name + '"]');
       if (item) item.classList.add('active');
+      syncPathToTab(name);
     }
 
     // ── Logging ──
@@ -370,7 +435,7 @@
 
     // ── Status display ──
     function updateStatusUI(status) {
-      var map = { puter: 's-puter', auth: 's-auth', objectStore: 's-r2', api: 's-api', puterFS: 's-fs' };
+      var map = { puter: 's-puter', puterAI: 's-puterai', auth: 's-auth', objectStore: 's-r2', api: 's-api', puterFS: 's-fs' };
       Object.keys(map).forEach(function (key) {
         var el = document.getElementById(map[key]);
         if (el) {
@@ -401,6 +466,7 @@
     // ── Init ──
     async function initConnector() {
       try {
+        bootstrapTabFromPath();
         var status = await GrudgeConnector.init({
           onLog: function (msg) {
             var type = msg.includes('✓') ? 'ok' : msg.includes('✗') ? 'err' : '';
@@ -412,6 +478,29 @@
       } catch (e) {
         log('Init failed: ' + e.message, 'err');
       }
+    }
+
+    function bootstrapTabFromPath() {
+      var params = new URLSearchParams(window.location.search || '');
+      var tab = (params.get('tab') || '').toLowerCase();
+      if (tab === 'animations') return switchTab('animations');
+      if (tab === 'characterstudio' || tab === 'character-studio') return switchTab('characterstudio');
+      if (tab === 'agentplayground' || tab === 'agent-playground') return switchTab('agentplayground');
+      if (tab === 'assets') return switchTab('assets');
+      if (tab === 'gamedata' || tab === 'game-data') return switchTab('gamedata');
+      if (tab === 'scenes') return switchTab('scenes');
+      if (tab === 'import') return switchTab('import');
+      if (tab === 'characters') return switchTab('characters');
+      var path = (window.location.pathname || '/').toLowerCase();
+      if (path === '/animations') return switchTab('animations');
+      if (path === '/character-studio') return switchTab('characterstudio');
+      if (path === '/agent-playground') return switchTab('agentplayground');
+      if (path === '/assets') return switchTab('assets');
+      if (path === '/game-data') return switchTab('gamedata');
+      if (path === '/scenes') return switchTab('scenes');
+      if (path === '/import') return switchTab('import');
+      if (path === '/characters') return switchTab('characters');
+      switchTab('dashboard');
     }
 
     // ── Auth ──
@@ -652,6 +741,115 @@
         document.getElementById('chars-list').innerHTML = html;
       } catch (e) {
         document.getElementById('chars-list').innerHTML = '<p style="color:var(--red);">Error: ' + e.message + '</p>';
+      }
+    }
+
+    // ── Animations ──
+    async function loadAnimations() {
+      switchTab('animations');
+      var target = document.getElementById('animations-list');
+      target.innerHTML = '<p style="color:var(--text-dim);">Loading animations...</p>';
+      try {
+        _animations = await GrudgeConnector.listAnimations();
+        if (!_animations.length) {
+          target.innerHTML = '<p style="color:var(--text-dim);">No animations found in imported projects yet.</p>';
+          return;
+        }
+        var html = '<table class="table"><tr><th>Project</th><th>Scene</th><th>Object</th><th>Animations</th></tr>';
+        _animations.forEach(function (a) {
+          html += '<tr><td>' + a.project + '</td><td>' + a.scene + '</td><td>' + a.object + '</td><td>' + a.animations.join(', ') + '</td></tr>';
+        });
+        html += '</table>';
+        target.innerHTML = html;
+      } catch (e) {
+        target.innerHTML = '<p style="color:var(--red);">Error loading animations: ' + e.message + '</p>';
+      }
+    }
+
+    function renderCharacterStudio() {
+      switchTab('characterstudio');
+      var panel = document.getElementById('character-studio-panel');
+
+      // Crash-safe data guards
+      var charsTable = document.getElementById('chars-list');
+      var hasChars = charsTable && charsTable.textContent && !charsTable.textContent.includes('Sign in');
+      var hasAnimations = Array.isArray(_animations) && _animations.length > 0;
+
+      var html = '<div class="status-grid">';
+      html += '<div class="status-card"><div class="label">Characters Loaded</div><div class="value" style="color:' + (hasChars ? 'var(--green)' : 'var(--red)') + ';">' + (hasChars ? 'YES' : 'NO') + '</div></div>';
+      html += '<div class="status-card"><div class="label">Animations Loaded</div><div class="value" style="color:' + (hasAnimations ? 'var(--green)' : 'var(--red)') + ';">' + (hasAnimations ? _animations.length : 0) + '</div></div>';
+      html += '<div class="status-card"><div class="label">Hierarchy Runtime</div><div class="value" style="color:' + (GrudgeConnector.getRuntime() ? 'var(--green)' : 'var(--red)') + ';">' + (GrudgeConnector.getRuntime() ? 'READY' : 'OFFLINE') + '</div></div>';
+      html += '</div>';
+
+      html += '<div style="margin-top:12px;">';
+      html += '<p style="font-size:13px; color:var(--text-dim); margin-bottom:8px;">Character Studio now uses defensive null-checks and will never hard-crash on missing project, character, or animation data.</p>';
+      if (hasAnimations) {
+        html += '<div class="card" style="margin:0; padding:10px;">';
+        html += '<h3 style="font-size:13px; color:var(--accent); margin-bottom:8px;">Top Animation Bind Candidates</h3>';
+        html += '<ul style="padding-left:16px; font-size:12px; color:var(--text-dim);">';
+        _animations.slice(0, 8).forEach(function (a) {
+          html += '<li><b>' + a.object + '</b> in ' + a.scene + ' → ' + a.animations.join(', ') + '</li>';
+        });
+        html += '</ul></div>';
+      }
+      html += '</div>';
+
+      panel.innerHTML = html;
+    }
+
+    // ── Agent Playground ──
+    function agentLog(text, cls) {
+      var logEl = document.getElementById('agent-chat-log');
+      if (!logEl) return;
+      var line = document.createElement('div');
+      line.className = 'line' + (cls ? ' ' + cls : '');
+      line.textContent = text;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function resetAgentChat() {
+      _agentMessages = [];
+      var logEl = document.getElementById('agent-chat-log');
+      if (logEl) logEl.innerHTML = '';
+      agentLog('Agent session reset.', '');
+    }
+
+    async function sendAgentMessage() {
+      switchTab('agentplayground');
+      var input = document.getElementById('agent-input');
+      var modelInput = document.getElementById('agent-model');
+      var sendBtn = document.getElementById('agent-send-btn');
+      var prompt = (input.value || '').trim();
+      if (!prompt) return;
+
+      if (!window.GrudgeAgentPlayground || !GrudgeAgentPlayground.isAvailable()) {
+        agentLog('Puter AI is not available in this runtime.', 'err');
+        return;
+      }
+
+      input.value = '';
+      sendBtn.disabled = true;
+      _agentMessages.push({ role: 'user', content: prompt });
+      agentLog('You: ' + prompt, '');
+
+      try {
+        var response = await GrudgeAgentPlayground.chat(_agentMessages, {
+          model: (modelInput.value || '').trim() || undefined,
+          temperature: 0.2,
+          maxTokens: 1400,
+        }, {
+          onToolStart: function (name) { agentLog('Tool ▶ ' + name, ''); },
+          onToolEnd: function (name) { agentLog('Tool ✓ ' + name, 'ok'); },
+          onToolError: function (name, err) { agentLog('Tool ✗ ' + name + ' — ' + (err.error || 'error'), 'err'); },
+        });
+
+        _agentMessages.push({ role: 'assistant', content: response.text });
+        agentLog('Agent: ' + response.text, 'ok');
+      } catch (e) {
+        agentLog('Agent error: ' + e.message, 'err');
+      } finally {
+        sendBtn.disabled = false;
       }
     }
 

@@ -1,0 +1,20 @@
+{
+  "name": "grudge-game-editor",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Grudge Game Editor with real Puter AI Agent Playground and Object Storage integration",
+  "scripts": {
+    "dev": "node server/index.js",
+    "start": "node server/index.js",
+    "check": "node -e \"console.log('ok')\""
+  },
+  "dependencies": {
+    "@heyputer/puter.js": "^2.0.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
