@@ -5,10 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Grudge Game Editor</title>
   <script src="https://js.puter.com/v2/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     :root {
       --bg: #0a0a0f;
       --surface: #13131a;
+      --surface2: #1a1a24;
       --border: #2a2a3a;
       --accent: #d4a84b;
       --accent-dim: #8b7355;
@@ -17,18 +21,9 @@
       --green: #4ade80;
       --red: #f87171;
       --blue: #60a5fa;
+      --yellow: #fbbf24;
     }
 
-    function syncPathToTab(name) {
-      var path = '/' + name;
-      if (name === 'dashboard') path = '/';
-      if (name === 'characterstudio') path = '/character-studio';
-      if (name === 'agentplayground') path = '/agent-playground';
-      if (name === 'gamedata') path = '/game-data';
-      if (window.location.pathname !== path) {
-        history.replaceState({}, '', path);
-      }
-    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -49,47 +44,40 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
+      gap: 12px;
     }
-    .header h1 {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-    }
-    .header .controls { display: flex; gap: 8px; align-items: center; }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      display: inline-block; margin-right: 4px;
-    }
-    .status-dot.on { background: var(--green); }
-    .status-dot.off { background: var(--red); }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header h1 { font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; white-space: nowrap; }
+    .header .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
     /* ── Buttons ── */
     .btn {
-      padding: 6px 14px;
+      padding: 5px 12px;
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--text);
-      border-radius: 6px;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       transition: all 0.15s;
+      white-space: nowrap;
     }
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn.primary { background: var(--accent); color: #0a0a0f; border-color: var(--accent); font-weight: 600; }
     .btn.primary:hover { background: #e0b85a; }
+    .btn.danger { border-color: var(--red); color: var(--red); }
+    .btn.danger:hover { background: var(--red); color: #0a0a0f; }
+    .btn.success { border-color: var(--green); color: var(--green); }
+    .btn.success:hover { background: var(--green); color: #0a0a0f; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-icon { padding: 5px 8px; font-size: 14px; }
 
     /* ── Main Layout ── */
-    .main {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-    }
+    .main { flex: 1; display: flex; overflow: hidden; }
 
     /* ── Sidebar ── */
     .sidebar {
-      width: 280px;
+      width: 240px;
       background: var(--surface);
       border-right: 1px solid var(--border);
       display: flex;
@@ -97,44 +85,57 @@
       overflow-y: auto;
       flex-shrink: 0;
     }
-    .sidebar-section {
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-    }
+    .sidebar-section { padding: 10px; border-bottom: 1px solid var(--border); }
     .sidebar-section h3 {
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 1px;
       color: var(--text-dim);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+      padding: 0 2px;
     }
     .sidebar-item {
       padding: 6px 8px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       transition: background 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-dim);
     }
-    .sidebar-item:hover { background: rgba(212, 168, 75, 0.1); }
-    .sidebar-item.active { background: rgba(212, 168, 75, 0.15); color: var(--accent); }
+    .sidebar-item:hover { background: rgba(212,168,75,0.08); color: var(--text); }
+    .sidebar-item.active { background: rgba(212,168,75,0.15); color: var(--accent); }
+    .sidebar-item .icon { font-size: 13px; width: 16px; text-align: center; }
+    .sidebar-badge {
+      margin-left: auto;
+      font-size: 10px;
+      background: rgba(212,168,75,0.2);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
 
     /* ── Content ── */
-    .content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
+    .content { flex: 1; overflow-y: auto; padding: 14px; }
 
     /* ── Cards ── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
     }
-    .card h2 { font-size: 14px; margin-bottom: 8px; color: var(--accent); }
-    .card p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .card h2 { font-size: 13px; color: var(--accent); font-weight: 600; }
+    .card p { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
 
     /* ── Log ── */
     .log {
@@ -142,22 +143,20 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 10px;
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 12px;
-      max-height: 200px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 11px;
+      max-height: 180px;
       overflow-y: auto;
       line-height: 1.6;
     }
     .log .line { color: var(--text-dim); }
     .log .line.ok { color: var(--green); }
     .log .line.err { color: var(--red); }
+    .log .line.info { color: var(--blue); }
+    .log .line.warn { color: var(--yellow); }
 
     /* ── Status Grid ── */
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 8px;
-    }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
     .status-card {
       background: rgba(255,255,255,0.02);
       border: 1px solid var(--border);
@@ -165,69 +164,388 @@
       padding: 10px;
       text-align: center;
     }
-    .status-card .label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
-    .status-card .value { font-size: 14px; font-weight: 600; }
-
-    /* ── Scene Viewer ── */
-    .scene-viewer {
-      background: #0d0d14;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      min-height: 300px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-dim);
-      font-size: 14px;
-    }
+    .status-card .label { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; }
+    .status-card .value { font-size: 13px; font-weight: 600; }
 
     /* ── File drop zone ── */
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: 8px;
-      padding: 24px;
+      padding: 20px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s;
     }
     .drop-zone:hover, .drop-zone.dragover {
       border-color: var(--accent);
-      background: rgba(212, 168, 75, 0.05);
+      background: rgba(212,168,75,0.04);
     }
     .drop-zone input { display: none; }
+    .drop-zone p { font-size: 13px; color: var(--text-dim); }
+    .drop-zone .drop-icon { font-size: 28px; margin-bottom: 8px; }
 
     /* ── Table ── */
-    .table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .table th { text-align: left; padding: 6px 8px; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); }
-    .table td { padding: 6px 8px; border-bottom: 1px solid rgba(42,42,58,0.5); }
-    .table tr:hover td { background: rgba(212, 168, 75, 0.03); }
+    .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table th { text-align: left; padding: 6px 8px; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 11px; }
+    .table td { padding: 6px 8px; border-bottom: 1px solid rgba(42,42,58,0.4); vertical-align: top; }
+    .table tr:hover td { background: rgba(212,168,75,0.03); }
+    .table .mono { font-family: monospace; font-size: 11px; color: var(--blue); }
 
     /* ── Tabs ── */
-    .tabs { display: flex; gap: 2px; margin-bottom: 12px; }
+    .tabs { display: flex; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
     .tab {
-      padding: 8px 16px;
+      padding: 7px 14px;
       background: transparent;
       border: none;
       color: var(--text-dim);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       border-bottom: 2px solid transparent;
       transition: all 0.15s;
+      margin-bottom: -1px;
     }
     .tab:hover { color: var(--text); }
     .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
+
+    /* ── 3D Scene Editor ── */
+    .scene-editor-layout {
+      display: flex;
+      gap: 10px;
+      height: 520px;
+    }
+    .hierarchy-panel {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .hierarchy-panel h4 {
+      padding: 8px 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .hierarchy-list { flex: 1; overflow-y: auto; padding: 4px; }
+    .hierarchy-node {
+      padding: 4px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-dim);
+      transition: background 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .hierarchy-node:hover { background: rgba(212,168,75,0.08); color: var(--text); }
+    .hierarchy-node.selected { background: rgba(212,168,75,0.15); color: var(--accent); }
+    .hierarchy-node .node-icon { font-size: 10px; }
+
+    #scene-3d-canvas {
+      flex: 1;
+      background: #080812;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+    #scene-3d-canvas canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .canvas-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    .canvas-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .inspector-panel {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .inspector-panel h4 {
+      padding: 8px 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .inspector-content { flex: 1; overflow-y: auto; padding: 8px; }
+    .inspector-field { margin-bottom: 8px; }
+    .inspector-field label { display: block; font-size: 10px; color: var(--text-dim); margin-bottom: 3px; }
+    .inspector-field input, .inspector-field select {
+      width: 100%;
+      padding: 4px 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .inspector-field input:focus, .inspector-field select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* ── Asset Upload ── */
+    .asset-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .asset-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      transition: border-color 0.15s;
+      cursor: pointer;
+    }
+    .asset-card:hover { border-color: var(--accent-dim); }
+    .asset-card.selected { border-color: var(--accent); }
+    .asset-thumb {
+      width: 100%;
+      height: 90px;
+      background: #080812;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .asset-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+    .asset-card .asset-name { font-size: 11px; color: var(--text); font-weight: 500; margin-bottom: 2px; word-break: break-all; }
+    .asset-card .asset-meta { font-size: 10px; color: var(--text-dim); }
+    .asset-actions { display: flex; gap: 4px; margin-top: 6px; }
+
+    /* ── Upload progress ── */
+    .upload-progress {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .progress-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.2s;
+    }
+
+    /* ── Animation Preview ── */
+    .anim-player {
+      background: #080812;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .anim-sprite-canvas {
+      image-rendering: pixelated;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      max-width: 100%;
+    }
+    .anim-controls { display: flex; gap: 6px; margin-top: 10px; align-items: center; }
+
+    /* ── Character Studio ── */
+    .char-studio-layout { display: flex; gap: 10px; min-height: 400px; }
+    .char-list-panel {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .char-list-panel h4 {
+      padding: 8px 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+    }
+    .char-list-items { overflow-y: auto; max-height: 340px; }
+    .char-list-item {
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(42,42,58,0.4);
+      transition: background 0.1s;
+    }
+    .char-list-item:hover { background: rgba(212,168,75,0.08); }
+    .char-list-item.selected { background: rgba(212,168,75,0.12); color: var(--accent); }
+    .char-list-item .char-name { font-weight: 500; }
+    .char-list-item .char-sub { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+    .char-studio-main { flex: 1; }
+
+    /* ── Forms ── */
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 7px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 5px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* ── Inline select style ── */
+    .scene-controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+    .scene-controls select {
+      padding: 5px 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .scene-controls select:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Agent Chat ── */
+    .agent-chat {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      height: 300px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .agent-msg { margin-bottom: 10px; }
+    .agent-msg .msg-role { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .agent-msg .msg-text { color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .agent-msg.user .msg-role { color: var(--blue); }
+    .agent-msg.assistant .msg-role { color: var(--accent); }
+    .agent-msg.tool .msg-role { color: var(--yellow); }
+    .agent-msg.tool .msg-text { color: var(--text-dim); font-size: 11px; font-style: italic; }
+    .agent-msg.error .msg-text { color: var(--red); }
+
+    /* ── Tag chip ── */
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      background: rgba(212,168,75,0.12);
+      color: var(--accent);
+      margin: 2px;
+    }
+    .chip.blue { background: rgba(96,165,250,0.12); color: var(--blue); }
+    .chip.green { background: rgba(74,222,128,0.12); color: var(--green); }
+    .chip.red { background: rgba(248,113,113,0.12); color: var(--red); }
+
+    /* ── Code ── */
+    code { background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px; font-size: 11px; font-family: monospace; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+
+    /* ── Overlay modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      min-width: 360px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal h3 { font-size: 14px; color: var(--accent); margin-bottom: 16px; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 700px) {
+      .sidebar { width: 48px; }
+      .sidebar-item span { display: none; }
+      .scene-editor-layout { flex-direction: column; height: auto; }
+      .hierarchy-panel, .inspector-panel { width: 100%; height: 160px; }
+    }
   </style>
 </head>
 <body>
 
   <!-- ── Header ── -->
   <div class="header">
-    <h1>⚔ GRUDGE GAME EDITOR</h1>
+    <div class="header-brand">
+      <h1>GRUDGE GAME EDITOR</h1>
+    </div>
     <div class="controls">
-      <span id="conn-status" style="font-size:12px; color:var(--text-dim);">Connecting...</span>
-      <button class="btn" id="btn-refresh" onclick="refreshStatus()">↻ Refresh</button>
+      <span id="conn-status" style="font-size:11px; color:var(--text-dim);">Connecting...</span>
+      <button class="btn btn-icon" id="btn-refresh" onclick="refreshStatus()" title="Refresh Status">&#8635;</button>
       <button class="btn primary" id="btn-auth" onclick="handleAuth()">Sign In</button>
     </div>
   </div>
@@ -238,29 +556,53 @@
     <div class="sidebar">
       <div class="sidebar-section">
         <h3>Navigation</h3>
-        <div class="sidebar-item active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</div>
-        <div class="sidebar-item" data-tab="import" onclick="switchTab('import')">📁 Import GDevelop</div>
-        <div class="sidebar-item" data-tab="scenes" onclick="switchTab('scenes')">🎬 Scene Viewer</div>
-        <div class="sidebar-item" data-tab="animations" onclick="switchTab('animations')">🎞 Animations</div>
-        <div class="sidebar-item" data-tab="characterstudio" onclick="switchTab('characterstudio')">🧬 Character Studio</div>
-        <div class="sidebar-item" data-tab="agentplayground" onclick="switchTab('agentplayground')">🤖 Agent Playground</div>
-        <div class="sidebar-item" data-tab="assets" onclick="switchTab('assets')">🗄 Object Store</div>
-        <div class="sidebar-item" data-tab="gamedata" onclick="switchTab('gamedata')">⚔ Game Data</div>
-        <div class="sidebar-item" data-tab="characters" onclick="switchTab('characters')">🧙 Characters</div>
+        <div class="sidebar-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+          <span class="icon">&#9776;</span><span>Dashboard</span>
+        </div>
+        <div class="sidebar-item" data-tab="import" onclick="switchTab('import')">
+          <span class="icon">&#8659;</span><span>Import</span>
+        </div>
+        <div class="sidebar-item" data-tab="scenes" onclick="switchTab('scenes')">
+          <span class="icon">&#9781;</span><span>Scene Editor</span>
+        </div>
+        <div class="sidebar-item" data-tab="animations" onclick="switchTab('animations')">
+          <span class="icon">&#9654;</span><span>Animations</span>
+        </div>
+        <div class="sidebar-item" data-tab="characterstudio" onclick="switchTab('characterstudio')">
+          <span class="icon">&#9854;</span><span>Characters</span>
+        </div>
+        <div class="sidebar-item" data-tab="agentplayground" onclick="switchTab('agentplayground')">
+          <span class="icon">&#9874;</span><span>AI Agent</span>
+        </div>
+        <div class="sidebar-item" data-tab="assets" onclick="switchTab('assets')">
+          <span class="icon">&#9783;</span><span>Assets</span>
+        </div>
+        <div class="sidebar-item" data-tab="gamedata" onclick="switchTab('gamedata')">
+          <span class="icon">&#9776;</span><span>Game Data</span>
+        </div>
       </div>
-      <div class="sidebar-section" id="projects-list">
+
+      <div class="sidebar-section" id="projects-list-panel">
         <h3>Projects</h3>
-        <p style="font-size:12px; color:var(--text-dim);">Import a GDevelop game to begin</p>
+        <p style="font-size:11px; color:var(--text-dim);">Import a GDevelop game to begin</p>
+      </div>
+
+      <div class="sidebar-section" id="scene-objects-panel" style="display:none;">
+        <h3>Scene Objects</h3>
+        <div id="scene-objects-list"></div>
       </div>
     </div>
 
     <!-- Content -->
     <div class="content">
 
-      <!-- Dashboard Tab -->
+      <!-- ── Dashboard ── -->
       <div class="tab-content active" id="tab-dashboard">
         <div class="card">
-          <h2>Connection Status</h2>
+          <div class="card-header">
+            <h2>Service Status</h2>
+            <button class="btn" onclick="refreshStatus()">Refresh All</button>
+          </div>
           <div class="status-grid" id="status-grid">
             <div class="status-card"><div class="label">Puter SDK</div><div class="value" id="s-puter">—</div></div>
             <div class="status-card"><div class="label">Puter AI</div><div class="value" id="s-puterai">—</div></div>
@@ -270,129 +612,370 @@
             <div class="status-card"><div class="label">Puter FS</div><div class="value" id="s-fs">—</div></div>
           </div>
         </div>
+
         <div class="card">
-          <h2>Init Log</h2>
-          <div class="log" id="init-log"></div>
-        </div>
-        <div class="card">
-          <h2>Quick Actions</h2>
+          <div class="card-header"><h2>Quick Actions</h2></div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn" onclick="loadAllGameData()">Load Game Data</button>
             <button class="btn" onclick="switchTab('import')">Import GDevelop Game</button>
-            <button class="btn" onclick="listR2Assets()">Browse R2 Assets</button>
-            <button class="btn" onclick="loadCharacters()">My Characters</button>
+            <button class="btn" onclick="loadAllGameData()">Load Game Data</button>
+            <button class="btn" onclick="listR2Assets()">Browse Assets</button>
+            <button class="btn" onclick="switchTab('characterstudio'); loadCharacters()">My Characters</button>
+            <button class="btn" onclick="switchTab('agentplayground')">Open AI Agent</button>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Init Log</h2></div>
+          <div class="log" id="init-log"></div>
         </div>
       </div>
 
-      <!-- Import Tab -->
+      <!-- ── Import Tab ── -->
       <div class="tab-content" id="tab-import">
         <div class="card">
-          <h2>Import GDevelop Project</h2>
-          <p>Drop a GDevelop <code>game.json</code> file below to parse and import it into the editor.</p>
-          <br>
+          <div class="card-header"><h2>Import GDevelop Project</h2></div>
+          <p style="margin-bottom:12px;">Drop a GDevelop <code>game.json</code> to parse scenes, objects, animations, and 3D models into the editor.</p>
           <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-            <p style="font-size:24px; margin-bottom:8px;">📂</p>
-            <p>Drop <b>game.json</b> here or click to browse</p>
+            <div class="drop-icon">&#8659;</div>
+            <p><b>Drop game.json here</b> or click to browse</p>
+            <p style="font-size:11px; margin-top:4px;">Supports GDevelop 5 project format</p>
             <input type="file" id="file-input" accept=".json" onchange="handleFileSelect(event)">
+          </div>
+          <div id="import-progress" style="margin-top:10px; display:none;">
+            <div class="upload-progress">
+              <span style="font-size:12px; color:var(--text-dim);" id="import-progress-text">Parsing...</span>
+              <div class="progress-bar-wrap"><div class="progress-bar" id="import-progress-bar" style="width:0%"></div></div>
+            </div>
           </div>
         </div>
         <div class="card" id="import-result" style="display:none;">
-          <h2>Import Result</h2>
+          <div class="card-header"><h2>Import Result</h2></div>
           <div id="import-details"></div>
         </div>
       </div>
 
-      <!-- Scenes Tab -->
+      <!-- ── Scene Editor Tab ── -->
       <div class="tab-content" id="tab-scenes">
         <div class="card">
-          <h2>Scene Viewer</h2>
-          <div id="scene-selector" style="margin-bottom:12px;"></div>
-          <div class="scene-viewer" id="scene-canvas">Select a project and scene to view</div>
+          <div class="card-header">
+            <h2>3D Scene Editor</h2>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-icon" onclick="resetCamera()" title="Reset Camera">&#8635;</button>
+              <button class="btn btn-icon" onclick="toggleGridHelper()" title="Toggle Grid">&#9783;</button>
+              <button class="btn btn-icon" onclick="toggleWireframe()" title="Toggle Wireframe">&#9633;</button>
+            </div>
+          </div>
+
+          <div class="scene-controls">
+            <select id="scene-project-select" onchange="onProjectSelect()" style="min-width:140px;">
+              <option value="">-- Select Project --</option>
+            </select>
+            <select id="scene-scene-select" onchange="loadSceneView()" style="min-width:140px;" disabled>
+              <option value="">-- Select Scene --</option>
+            </select>
+            <button class="btn" onclick="addEntityToScene()">+ Add Entity</button>
+            <button class="btn success" id="btn-save-scene" onclick="saveSceneChanges()" disabled>Save</button>
+          </div>
+
+          <div class="scene-editor-layout">
+            <!-- Hierarchy -->
+            <div class="hierarchy-panel">
+              <h4>Hierarchy</h4>
+              <div class="hierarchy-list" id="hierarchy-list">
+                <p style="padding:8px; font-size:11px; color:var(--text-dim);">No scene loaded</p>
+              </div>
+            </div>
+
+            <!-- 3D Viewport -->
+            <div id="scene-3d-canvas">
+              <div class="canvas-overlay" id="canvas-placeholder">
+                <div style="text-align:center;">
+                  <div style="font-size:32px; margin-bottom:8px;">&#9781;</div>
+                  <p>Select a project and scene to open the 3D viewport</p>
+                </div>
+              </div>
+              <div class="canvas-controls" id="canvas-controls" style="display:none;">
+                <button class="btn btn-icon" onclick="focusSelected()" title="Focus Selected">&#9654;</button>
+              </div>
+            </div>
+
+            <!-- Inspector -->
+            <div class="inspector-panel">
+              <h4>Inspector</h4>
+              <div class="inspector-content" id="inspector-content">
+                <p style="font-size:11px; color:var(--text-dim);">Select an object to inspect</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card" id="scene-details" style="display:none;">
-          <h2>Scene Data</h2>
-          <div id="scene-info"></div>
+
+        <!-- Scene Stats -->
+        <div class="card" id="scene-stats-card" style="display:none;">
+          <div class="card-header"><h2>Scene Statistics</h2></div>
+          <div id="scene-stats"></div>
         </div>
       </div>
 
-      <!-- Assets Tab -->
+      <!-- ── Animations Tab ── -->
+      <div class="tab-content" id="tab-animations">
+        <div class="card">
+          <div class="card-header">
+            <h2>Animation Library</h2>
+            <button class="btn" onclick="loadAnimations()">Refresh</button>
+          </div>
+          <p style="margin-bottom:12px;">Browse and preview sprite animations extracted from imported projects.</p>
+
+          <!-- Animation Player -->
+          <div class="anim-player" id="anim-player">
+            <p style="color:var(--text-dim); font-size:12px;">Select an animation from the library below to preview it</p>
+          </div>
+          <div class="anim-controls" id="anim-controls" style="display:none; justify-content:center;">
+            <button class="btn btn-icon" id="anim-play-btn" onclick="toggleAnimPlay()">&#9654;</button>
+            <select id="anim-speed-select" onchange="setAnimSpeed(this.value)" style="padding:4px 8px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px; font-size:11px;">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+            </select>
+            <span id="anim-frame-info" style="font-size:11px; color:var(--text-dim);">Frame 0/0</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Animations</h2></div>
+          <div id="animations-list">
+            <p style="font-size:12px; color:var(--text-dim);">Load animations from imported projects.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Character Studio ── -->
+      <div class="tab-content" id="tab-characterstudio">
+        <div class="card">
+          <div class="card-header">
+            <h2>Character Studio</h2>
+            <div style="display:flex; gap:6px;">
+              <button class="btn" onclick="loadCharacters()">Refresh</button>
+              <button class="btn primary" onclick="openCreateCharModal()">+ New Character</button>
+            </div>
+          </div>
+          <div class="char-studio-layout">
+            <!-- Character List -->
+            <div class="char-list-panel">
+              <h4>Characters</h4>
+              <div class="char-list-items" id="char-list-items">
+                <div style="padding:10px; font-size:11px; color:var(--text-dim);">Sign in to view characters</div>
+              </div>
+            </div>
+
+            <!-- Character Detail -->
+            <div class="char-studio-main">
+              <div id="char-detail">
+                <div class="card" style="margin:0;">
+                  <p style="color:var(--text-dim);">Select a character to view details and bind animations.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hierarchy Runtime Panel -->
+        <div class="card">
+          <div class="card-header"><h2>Entity Hierarchy Runtime</h2></div>
+          <div id="runtime-panel">
+            <p style="font-size:12px; color:var(--text-dim);">Runtime not loaded.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Agent Playground ── -->
+      <div class="tab-content" id="tab-agentplayground">
+        <div class="card">
+          <div class="card-header">
+            <h2>AI Agent (Puter AI)</h2>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input id="agent-model" placeholder="Model (optional)" style="padding:5px 8px; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:4px; font-size:11px; width:180px;" />
+              <button class="btn" onclick="resetAgentChat()">Reset</button>
+            </div>
+          </div>
+          <div class="agent-chat" id="agent-chat-log"></div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <textarea id="agent-input"
+              placeholder="Ask about scenes, search assets, inspect objects, save notes..."
+              style="flex:1; min-height:72px; padding:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:5px; font-size:12px; font-family:inherit; resize:vertical;"
+              onkeydown="agentInputKeydown(event)"></textarea>
+            <button class="btn primary" id="agent-send-btn" onclick="sendAgentMessage()" style="align-self:flex-end;">Send</button>
+          </div>
+          <p style="font-size:10px; color:var(--text-dim); margin-top:6px;">Ctrl+Enter to send. Agent has access to: list_projects, inspect_scene, search_assets, get_game_data, save_project_note</p>
+        </div>
+      </div>
+
+      <!-- ── Assets Tab ── -->
       <div class="tab-content" id="tab-assets">
         <div class="card">
-          <h2>Object Store — R2 Assets</h2>
-          <div style="display:flex; gap:8px; margin-bottom:12px;">
-            <button class="btn" onclick="listR2Assets()">Refresh</button>
+          <div class="card-header">
+            <h2>Asset Manager — R2 Object Store</h2>
+            <button class="btn primary" onclick="openUploadModal()">+ Upload Asset</button>
+          </div>
+
+          <!-- Filters -->
+          <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
+            <input id="asset-search-input" placeholder="Search assets..." style="padding:5px 10px; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:4px; font-size:12px; width:200px;" oninput="debounceAssetSearch()" />
+            <button class="btn" onclick="listR2Assets()">All</button>
             <button class="btn" onclick="listR2Assets('weapon')">Weapons</button>
             <button class="btn" onclick="listR2Assets('armor')">Armor</button>
             <button class="btn" onclick="listR2Assets('model')">Models</button>
             <button class="btn" onclick="listR2Assets('texture')">Textures</button>
+            <button class="btn" onclick="listR2Assets('audio')">Audio</button>
           </div>
-          <div id="assets-list"><p style="font-size:13px; color:var(--text-dim);">Click Refresh to load assets from R2.</p></div>
+
+          <div id="assets-list">
+            <p style="font-size:12px; color:var(--text-dim);">Click a category or search to load assets from R2.</p>
+          </div>
         </div>
       </div>
 
-      <!-- Game Data Tab -->
+      <!-- ── Game Data Tab ── -->
       <div class="tab-content" id="tab-gamedata">
         <div class="card">
-          <h2>Static Game Data (ObjectStore)</h2>
-          <p>Loaded from <code>molochdagod.github.io/ObjectStore/api/v1/</code></p>
-          <br>
+          <div class="card-header">
+            <h2>Static Game Data</h2>
+            <button class="btn" onclick="loadAllGameData()">Load All</button>
+          </div>
+          <p style="margin-bottom:12px;">Loaded from <code>molochdagod.github.io/ObjectStore</code> — weapons, armor, races, classes, skills, and more.</p>
           <div class="tabs" id="gd-tabs"></div>
-          <div id="gamedata-content"><p style="font-size:13px; color:var(--text-dim);">Click "Load Game Data" on the dashboard first.</p></div>
-        </div>
-      </div>
-
-      <!-- Characters Tab -->
-      <div class="tab-content" id="tab-characters">
-        <div class="card">
-          <h2>My Characters</h2>
-          <div id="chars-list"><p style="font-size:13px; color:var(--text-dim);">Sign in to view your characters.</p></div>
-        </div>
-      </div>
-
-      <!-- Animations Tab -->
-      <div class="tab-content" id="tab-animations">
-        <div class="card">
-          <h2>Animation Library</h2>
-          <p>Live animation extraction from imported game scenes and object storage assets.</p>
-          <div style="display:flex; gap:8px; margin-top:10px;">
-            <button class="btn" onclick="loadAnimations()">Refresh Animations</button>
-          </div>
-          <div id="animations-list" style="margin-top:12px;"><p style="font-size:13px; color:var(--text-dim);">No animations loaded yet.</p></div>
-        </div>
-      </div>
-
-      <!-- Character Studio Tab -->
-      <div class="tab-content" id="tab-characterstudio">
-        <div class="card">
-          <h2>Character Studio</h2>
-          <p>Crash-safe character editor with hierarchy + animation binding preview.</p>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn" onclick="loadCharacters()">Load Characters</button>
-            <button class="btn" onclick="loadAnimations()">Load Animations</button>
-            <button class="btn" onclick="renderCharacterStudio()">Open Studio</button>
-          </div>
-          <div id="character-studio-panel" style="margin-top:12px;">
-            <p style="font-size:13px; color:var(--text-dim);">Select a character and animation to begin.</p>
+          <div id="gamedata-content">
+            <p style="font-size:12px; color:var(--text-dim);">Click "Load All" to fetch game data.</p>
           </div>
         </div>
       </div>
 
-      <!-- Agent Playground Tab -->
-      <div class="tab-content" id="tab-agentplayground">
-        <div class="card">
-          <h2>Agent Playground (Real Puter AI)</h2>
-          <p>No mocks. Uses live <code>puter.ai.chat()</code> with real tools for scenes and object storage.</p>
-          <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
-            <input id="agent-model" placeholder="Optional model (leave empty for default)" style="flex:1; min-width:260px; padding:8px; background:#0d0d14; border:1px solid var(--border); color:var(--text); border-radius:6px;" />
-            <button class="btn" onclick="resetAgentChat()">Reset</button>
-          </div>
-          <div id="agent-chat-log" class="log" style="margin-top:12px; max-height:260px;"></div>
-          <div style="display:flex; gap:8px; margin-top:10px;">
-            <textarea id="agent-input" placeholder="Ask the agent to inspect scenes, search assets, or save project notes..." style="flex:1; min-height:84px; padding:10px; background:#0d0d14; border:1px solid var(--border); color:var(--text); border-radius:6px;"></textarea>
-            <button class="btn primary" id="agent-send-btn" onclick="sendAgentMessage()">Send</button>
-          </div>
+    </div><!-- /content -->
+  </div><!-- /main -->
+
+  <!-- ── Upload Asset Modal ── -->
+  <div class="modal-overlay" id="upload-modal">
+    <div class="modal">
+      <h3>Upload Asset to R2</h3>
+      <div class="form-group">
+        <label>File</label>
+        <div class="drop-zone" id="asset-drop-zone" onclick="document.getElementById('asset-file-input').click()" style="padding:14px;">
+          <p id="asset-drop-label">Drop file here or click to browse</p>
+          <input type="file" id="asset-file-input" onchange="handleAssetFileSelect(event)">
         </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="upload-category">
+            <option value="model">Model</option>
+            <option value="texture">Texture</option>
+            <option value="weapon">Weapon</option>
+            <option value="armor">Armor</option>
+            <option value="audio">Audio</option>
+            <option value="animation">Animation</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Visibility</label>
+          <select id="upload-visibility">
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Tags (comma separated)</label>
+        <input type="text" id="upload-tags" placeholder="e.g. sword, iron, warrior">
+      </div>
+      <div id="upload-progress-wrap" style="display:none;">
+        <div class="upload-progress">
+          <span style="font-size:12px; color:var(--text-dim);" id="upload-progress-text">Uploading...</span>
+          <div class="progress-bar-wrap"><div class="progress-bar" id="upload-progress-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeUploadModal()">Cancel</button>
+        <button class="btn primary" id="upload-submit-btn" onclick="uploadAsset()">Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Create Character Modal ── -->
+  <div class="modal-overlay" id="create-char-modal">
+    <div class="modal">
+      <h3>Create New Character</h3>
+      <div class="form-group">
+        <label>Character Name</label>
+        <input type="text" id="new-char-name" placeholder="Enter character name">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Race</label>
+          <select id="new-char-race">
+            <option value="human">Human</option>
+            <option value="elf">Elf</option>
+            <option value="dwarf">Dwarf</option>
+            <option value="orc">Orc</option>
+            <option value="undead">Undead</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Class</label>
+          <select id="new-char-class">
+            <option value="warrior">Warrior</option>
+            <option value="mage">Mage</option>
+            <option value="ranger">Ranger</option>
+            <option value="rogue">Rogue</option>
+            <option value="paladin">Paladin</option>
+          </select>
+        </div>
+      </div>
+      <div id="create-char-error" style="color:var(--red); font-size:12px; display:none;"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeCreateCharModal()">Cancel</button>
+        <button class="btn primary" id="create-char-btn" onclick="createCharacter()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Add Entity Modal ── -->
+  <div class="modal-overlay" id="add-entity-modal">
+    <div class="modal">
+      <h3>Add Entity to Scene</h3>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="new-entity-name" placeholder="Entity name" value="New Entity">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="new-entity-type">
+            <option value="sprite">Sprite</option>
+            <option value="model-3d">3D Model</option>
+            <option value="cube-3d">3D Cube</option>
+            <option value="text">Text</option>
+            <option value="particles">Particles</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Layer</label>
+          <input type="text" id="new-entity-layer" placeholder="Layer name" value="">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Position X</label>
+          <input type="number" id="new-entity-x" value="0">
+        </div>
+        <div class="form-group">
+          <label>Position Y</label>
+          <input type="number" id="new-entity-y" value="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAddEntityModal()">Cancel</button>
+        <button class="btn primary" onclick="confirmAddEntity()">Add</button>
       </div>
     </div>
   </div>
@@ -405,456 +988,6 @@
   <script src="js/grudge-engine-core.js"></script>
   <script src="js/grudge-agent-playground.js"></script>
   <script src="js/grudge-connector.js"></script>
-  <script>
-    // ── State ──
-    var _gameData = null;
-    var _projects = [];
-    var _animations = [];
-    var _agentMessages = [];
-
-    // ── Tab switching ──
-    function switchTab(name) {
-      document.querySelectorAll('.tab-content').forEach(function (el) { el.classList.remove('active'); });
-      document.querySelectorAll('.sidebar-item').forEach(function (el) { el.classList.remove('active'); });
-      var tab = document.getElementById('tab-' + name);
-      if (tab) tab.classList.add('active');
-      var item = document.querySelector('.sidebar-item[data-tab="' + name + '"]');
-      if (item) item.classList.add('active');
-      syncPathToTab(name);
-    }
-
-    // ── Logging ──
-    function log(msg, type) {
-      var el = document.getElementById('init-log');
-      var line = document.createElement('div');
-      line.className = 'line' + (type ? ' ' + type : '');
-      line.textContent = msg;
-      el.appendChild(line);
-      el.scrollTop = el.scrollHeight;
-    }
-
-    // ── Status display ──
-    function updateStatusUI(status) {
-      var map = { puter: 's-puter', puterAI: 's-puterai', auth: 's-auth', objectStore: 's-r2', api: 's-api', puterFS: 's-fs' };
-      Object.keys(map).forEach(function (key) {
-        var el = document.getElementById(map[key]);
-        if (el) {
-          el.textContent = status[key] ? '✓ Online' : '✗ Offline';
-          el.style.color = status[key] ? 'var(--green)' : 'var(--red)';
-        }
-      });
-
-      // Header status
-      var online = Object.values(status).filter(Boolean).length;
-      var total = Object.keys(status).length;
-      var connEl = document.getElementById('conn-status');
-      connEl.textContent = online + '/' + total + ' connected';
-      connEl.style.color = online === total ? 'var(--green)' : online > 0 ? 'var(--accent)' : 'var(--red)';
-
-      // Auth button
-      var btn = document.getElementById('btn-auth');
-      if (GrudgeAuth.isSignedIn()) {
-        var user = GrudgeAuth.getUser();
-        btn.textContent = '👤 ' + (user.username || 'Signed In');
-        btn.className = 'btn';
-      } else {
-        btn.textContent = 'Sign In';
-        btn.className = 'btn primary';
-      }
-    }
-
-    // ── Init ──
-    async function initConnector() {
-      try {
-        bootstrapTabFromPath();
-        var status = await GrudgeConnector.init({
-          onLog: function (msg) {
-            var type = msg.includes('✓') ? 'ok' : msg.includes('✗') ? 'err' : '';
-            log(msg, type);
-          },
-        });
-        updateStatusUI(status);
-        await refreshProjectsList();
-      } catch (e) {
-        log('Init failed: ' + e.message, 'err');
-      }
-    }
-
-    function bootstrapTabFromPath() {
-      var params = new URLSearchParams(window.location.search || '');
-      var tab = (params.get('tab') || '').toLowerCase();
-      if (tab === 'animations') return switchTab('animations');
-      if (tab === 'characterstudio' || tab === 'character-studio') return switchTab('characterstudio');
-      if (tab === 'agentplayground' || tab === 'agent-playground') return switchTab('agentplayground');
-      if (tab === 'assets') return switchTab('assets');
-      if (tab === 'gamedata' || tab === 'game-data') return switchTab('gamedata');
-      if (tab === 'scenes') return switchTab('scenes');
-      if (tab === 'import') return switchTab('import');
-      if (tab === 'characters') return switchTab('characters');
-      var path = (window.location.pathname || '/').toLowerCase();
-      if (path === '/animations') return switchTab('animations');
-      if (path === '/character-studio') return switchTab('characterstudio');
-      if (path === '/agent-playground') return switchTab('agentplayground');
-      if (path === '/assets') return switchTab('assets');
-      if (path === '/game-data') return switchTab('gamedata');
-      if (path === '/scenes') return switchTab('scenes');
-      if (path === '/import') return switchTab('import');
-      if (path === '/characters') return switchTab('characters');
-      switchTab('dashboard');
-    }
-
-    // ── Auth ──
-    async function handleAuth() {
-      if (GrudgeAuth.isSignedIn()) {
-        if (confirm('Sign out?')) {
-          await GrudgeConnector.signOut();
-          updateStatusUI(GrudgeConnector.getStatus());
-          log('Signed out.', '');
-        }
-      } else {
-        try {
-          log('Signing in via Puter...', '');
-          var user = await GrudgeConnector.signIn();
-          log('Signed in as ' + user.username, 'ok');
-          updateStatusUI(GrudgeConnector.getStatus());
-          await refreshProjectsList();
-        } catch (e) {
-          log('Sign in failed: ' + e.message, 'err');
-        }
-      }
-    }
-
-    // ── Refresh ──
-    async function refreshStatus() {
-      log('Refreshing status...', '');
-      var status = await GrudgeConnector.refresh();
-      updateStatusUI(status);
-      log('Status refreshed.', 'ok');
-    }
-
-    // ── GDevelop Import ──
-    var dropZone = document.getElementById('drop-zone');
-    dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('dragover'); });
-    dropZone.addEventListener('drop', function (e) {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      if (e.dataTransfer.files.length > 0) importFile(e.dataTransfer.files[0]);
-    });
-
-    function handleFileSelect(e) {
-      if (e.target.files.length > 0) importFile(e.target.files[0]);
-    }
-
-    async function importFile(file) {
-      log('Importing ' + file.name + '...', '');
-      try {
-        var result = await GrudgeConnector.importGDevelopGame(file);
-        var project = result.project || result;
-
-        document.getElementById('import-result').style.display = 'block';
-        var html = '<p><b>Project:</b> ' + project.name + '</p>';
-        html += '<p><b>Scenes:</b> ' + project.sceneNames.join(', ') + '</p>';
-        html += '<p><b>Window:</b> ' + project.windowWidth + 'x' + project.windowHeight + '</p>';
-        html += '<p><b>Extensions:</b> ' + (project.extensions || []).map(function (e) { return e.name; }).join(', ') + '</p>';
-        if (result.rawPath) html += '<p><b>Stored at:</b> ' + result.rawPath + '</p>';
-        document.getElementById('import-details').innerHTML = html;
-
-        log('Imported ' + project.name + ' with ' + project.sceneNames.length + ' scene(s)', 'ok');
-        await refreshProjectsList();
-      } catch (e) {
-        log('Import failed: ' + e.message, 'err');
-      }
-    }
-
-    // ── Projects list ──
-    async function refreshProjectsList() {
-      try {
-        _projects = await GrudgeConnector.listGDevelopProjects();
-      } catch (e) {
-        _projects = [];
-      }
-      var el = document.getElementById('projects-list');
-      if (_projects.length === 0) {
-        el.innerHTML = '<h3>Projects</h3><p style="font-size:12px; color:var(--text-dim);">No projects yet</p>';
-        return;
-      }
-      var html = '<h3>Projects (' + _projects.length + ')</h3>';
-      _projects.forEach(function (p) {
-        html += '<div class="sidebar-item" onclick="openProject(\'' + encodeURIComponent(p.path) + '\')">';
-        html += '📁 ' + (p.name || p.dirName);
-        if (p.sceneNames && p.sceneNames.length) html += ' <span style="color:var(--text-dim); font-size:11px;">(' + p.sceneNames.length + ' scenes)</span>';
-        html += '</div>';
-      });
-      el.innerHTML = html;
-    }
-
-    async function openProject(encodedPath) {
-      var path = decodeURIComponent(encodedPath);
-      switchTab('scenes');
-      try {
-        var project = _projects.find(function (p) { return p.path === path; });
-        if (!project || !project.sceneNames || project.sceneNames.length === 0) {
-          document.getElementById('scene-canvas').textContent = 'No scenes in this project';
-          return;
-        }
-        var html = '<select id="scene-select" onchange="loadSceneView()" style="background:var(--surface); color:var(--text); border:1px solid var(--border); padding:6px 10px; border-radius:4px;">';
-        project.sceneNames.forEach(function (name) {
-          html += '<option value="' + name + '">' + name + '</option>';
-        });
-        html += '</select>';
-        html += ' <span style="font-size:12px; color:var(--text-dim);">from ' + (project.name || project.dirName) + '</span>';
-        document.getElementById('scene-selector').innerHTML = html;
-        document.getElementById('scene-selector').dataset.projectPath = path;
-        loadSceneView();
-      } catch (e) {
-        log('Failed to open project: ' + e.message, 'err');
-      }
-    }
-
-    async function loadSceneView() {
-      var select = document.getElementById('scene-select');
-      if (!select) return;
-      var projectPath = document.getElementById('scene-selector').dataset.projectPath;
-      var sceneName = select.value;
-      try {
-        var scene = await GrudgeConnector.loadScene(projectPath, sceneName);
-        renderScenePreview(scene);
-      } catch (e) {
-        document.getElementById('scene-canvas').textContent = 'Error: ' + e.message;
-      }
-    }
-
-    function renderScenePreview(scene) {
-      var canvas = document.getElementById('scene-canvas');
-      var objCount = Object.keys(scene.objects || {}).length;
-      var instCount = (scene.instances || []).length;
-      var layerCount = (scene.layers || []).length;
-
-      var html = '<div style="text-align:left; padding:16px; width:100%;">';
-      html += '<h3 style="color:var(--accent); margin-bottom:12px;">' + scene.name + '</h3>';
-      html += '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px;">';
-      html += '<div class="status-card"><div class="label">Objects</div><div class="value">' + objCount + '</div></div>';
-      html += '<div class="status-card"><div class="label">Instances</div><div class="value">' + instCount + '</div></div>';
-      html += '<div class="status-card"><div class="label">Layers</div><div class="value">' + layerCount + '</div></div>';
-      html += '</div>';
-
-      // Object list
-      html += '<table class="table"><tr><th>Object</th><th>Type</th><th>Behaviors</th></tr>';
-      Object.values(scene.objects || {}).forEach(function (obj) {
-        html += '<tr><td>' + obj.name + '</td><td><code style="color:var(--blue)">' + obj.type + '</code></td>';
-        html += '<td>' + (obj.behaviors || []).map(function (b) { return b.name; }).join(', ') + '</td></tr>';
-      });
-      html += '</table>';
-
-      // Layers
-      if (scene.layers && scene.layers.length) {
-        html += '<h4 style="margin-top:12px; color:var(--text-dim); font-size:12px;">Layers</h4>';
-        scene.layers.forEach(function (l) {
-          html += '<span style="display:inline-block; padding:2px 8px; margin:2px; background:rgba(255,255,255,0.05); border-radius:4px; font-size:12px;">' + (l.name || '(base)') + (l.isLightingLayer ? ' 💡' : '') + '</span>';
-        });
-      }
-
-      html += '</div>';
-      canvas.innerHTML = html;
-
-      // Scene details panel
-      document.getElementById('scene-details').style.display = 'block';
-      document.getElementById('scene-info').innerHTML = '<pre style="font-size:11px; color:var(--text-dim); max-height:200px; overflow:auto;">' + JSON.stringify(scene, null, 2).slice(0, 3000) + '...</pre>';
-    }
-
-    // ── R2 Assets ──
-    async function listR2Assets(category) {
-      switchTab('assets');
-      try {
-        var result = await GrudgeObjectStore.r2.list({ category: category, limit: 50 });
-        var items = result.items || [];
-        if (items.length === 0) {
-          document.getElementById('assets-list').innerHTML = '<p style="color:var(--text-dim);">No assets found' + (category ? ' in category: ' + category : '') + '</p>';
-          return;
-        }
-        var html = '<table class="table"><tr><th>Name</th><th>Category</th><th>Size</th><th>Actions</th></tr>';
-        items.forEach(function (a) {
-          html += '<tr><td>' + a.filename + '</td><td>' + a.category + '</td>';
-          html += '<td>' + ((a.size / 1024).toFixed(1)) + ' KB</td>';
-          html += '<td><a href="' + GrudgeObjectStore.r2.fileUrl(a.id) + '" target="_blank" style="color:var(--blue); font-size:12px;">View</a></td></tr>';
-        });
-        html += '</table>';
-        document.getElementById('assets-list').innerHTML = html;
-      } catch (e) {
-        document.getElementById('assets-list').innerHTML = '<p style="color:var(--red);">Error: ' + e.message + '</p>';
-      }
-    }
-
-    // ── Game Data ──
-    async function loadAllGameData() {
-      log('Loading game data from ObjectStore...', '');
-      try {
-        _gameData = await GrudgeConnector.loadGameData();
-        var keys = Object.keys(_gameData).filter(function (k) { return _gameData[k] !== null; });
-        log('Loaded ' + keys.length + ' data sets: ' + keys.join(', '), 'ok');
-
-        // Build tabs
-        var tabsHtml = '';
-        keys.forEach(function (k, i) {
-          tabsHtml += '<button class="tab' + (i === 0 ? ' active' : '') + '" onclick="showGameDataTab(\'' + k + '\', this)">' + k + '</button>';
-        });
-        document.getElementById('gd-tabs').innerHTML = tabsHtml;
-        if (keys.length > 0) showGameDataTab(keys[0]);
-        switchTab('gamedata');
-      } catch (e) {
-        log('Failed to load game data: ' + e.message, 'err');
-      }
-    }
-
-    function showGameDataTab(key, btnEl) {
-      if (btnEl) {
-        document.querySelectorAll('#gd-tabs .tab').forEach(function (t) { t.classList.remove('active'); });
-        btnEl.classList.add('active');
-      }
-      var data = _gameData[key];
-      var el = document.getElementById('gamedata-content');
-      if (!data) { el.innerHTML = '<p style="color:var(--red);">No data for ' + key + '</p>'; return; }
-      el.innerHTML = '<pre style="font-size:12px; color:var(--text-dim); max-height:400px; overflow:auto; background:#0d0d14; padding:10px; border-radius:6px;">' + JSON.stringify(data, null, 2).slice(0, 10000) + '</pre>';
-    }
-
-    // ── Characters ──
-    async function loadCharacters() {
-      switchTab('characters');
-      if (!GrudgeAuth.isSignedIn()) {
-        document.getElementById('chars-list').innerHTML = '<p style="color:var(--text-dim);">Sign in to view your characters.</p>';
-        return;
-      }
-      try {
-        var chars = await GrudgeAPI.characters.list();
-        var list = Array.isArray(chars) ? chars : chars.characters || [];
-        if (list.length === 0) {
-          document.getElementById('chars-list').innerHTML = '<p style="color:var(--text-dim);">No characters found. Create one in-game!</p>';
-          return;
-        }
-        var html = '<table class="table"><tr><th>Name</th><th>Race</th><th>Class</th><th>Level</th><th>Gold</th></tr>';
-        list.forEach(function (c) {
-          html += '<tr><td>' + c.name + '</td><td>' + c.race + '</td><td>' + c.class + '</td>';
-          html += '<td>' + (c.level || 1) + '</td><td>' + (c.gold || 0).toLocaleString() + '</td></tr>';
-        });
-        html += '</table>';
-        document.getElementById('chars-list').innerHTML = html;
-      } catch (e) {
-        document.getElementById('chars-list').innerHTML = '<p style="color:var(--red);">Error: ' + e.message + '</p>';
-      }
-    }
-
-    // ── Animations ──
-    async function loadAnimations() {
-      switchTab('animations');
-      var target = document.getElementById('animations-list');
-      target.innerHTML = '<p style="color:var(--text-dim);">Loading animations...</p>';
-      try {
-        _animations = await GrudgeConnector.listAnimations();
-        if (!_animations.length) {
-          target.innerHTML = '<p style="color:var(--text-dim);">No animations found in imported projects yet.</p>';
-          return;
-        }
-        var html = '<table class="table"><tr><th>Project</th><th>Scene</th><th>Object</th><th>Animations</th></tr>';
-        _animations.forEach(function (a) {
-          html += '<tr><td>' + a.project + '</td><td>' + a.scene + '</td><td>' + a.object + '</td><td>' + a.animations.join(', ') + '</td></tr>';
-        });
-        html += '</table>';
-        target.innerHTML = html;
-      } catch (e) {
-        target.innerHTML = '<p style="color:var(--red);">Error loading animations: ' + e.message + '</p>';
-      }
-    }
-
-    function renderCharacterStudio() {
-      switchTab('characterstudio');
-      var panel = document.getElementById('character-studio-panel');
-
-      // Crash-safe data guards
-      var charsTable = document.getElementById('chars-list');
-      var hasChars = charsTable && charsTable.textContent && !charsTable.textContent.includes('Sign in');
-      var hasAnimations = Array.isArray(_animations) && _animations.length > 0;
-
-      var html = '<div class="status-grid">';
-      html += '<div class="status-card"><div class="label">Characters Loaded</div><div class="value" style="color:' + (hasChars ? 'var(--green)' : 'var(--red)') + ';">' + (hasChars ? 'YES' : 'NO') + '</div></div>';
-      html += '<div class="status-card"><div class="label">Animations Loaded</div><div class="value" style="color:' + (hasAnimations ? 'var(--green)' : 'var(--red)') + ';">' + (hasAnimations ? _animations.length : 0) + '</div></div>';
-      html += '<div class="status-card"><div class="label">Hierarchy Runtime</div><div class="value" style="color:' + (GrudgeConnector.getRuntime() ? 'var(--green)' : 'var(--red)') + ';">' + (GrudgeConnector.getRuntime() ? 'READY' : 'OFFLINE') + '</div></div>';
-      html += '</div>';
-
-      html += '<div style="margin-top:12px;">';
-      html += '<p style="font-size:13px; color:var(--text-dim); margin-bottom:8px;">Character Studio now uses defensive null-checks and will never hard-crash on missing project, character, or animation data.</p>';
-      if (hasAnimations) {
-        html += '<div class="card" style="margin:0; padding:10px;">';
-        html += '<h3 style="font-size:13px; color:var(--accent); margin-bottom:8px;">Top Animation Bind Candidates</h3>';
-        html += '<ul style="padding-left:16px; font-size:12px; color:var(--text-dim);">';
-        _animations.slice(0, 8).forEach(function (a) {
-          html += '<li><b>' + a.object + '</b> in ' + a.scene + ' → ' + a.animations.join(', ') + '</li>';
-        });
-        html += '</ul></div>';
-      }
-      html += '</div>';
-
-      panel.innerHTML = html;
-    }
-
-    // ── Agent Playground ──
-    function agentLog(text, cls) {
-      var logEl = document.getElementById('agent-chat-log');
-      if (!logEl) return;
-      var line = document.createElement('div');
-      line.className = 'line' + (cls ? ' ' + cls : '');
-      line.textContent = text;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function resetAgentChat() {
-      _agentMessages = [];
-      var logEl = document.getElementById('agent-chat-log');
-      if (logEl) logEl.innerHTML = '';
-      agentLog('Agent session reset.', '');
-    }
-
-    async function sendAgentMessage() {
-      switchTab('agentplayground');
-      var input = document.getElementById('agent-input');
-      var modelInput = document.getElementById('agent-model');
-      var sendBtn = document.getElementById('agent-send-btn');
-      var prompt = (input.value || '').trim();
-      if (!prompt) return;
-
-      if (!window.GrudgeAgentPlayground || !GrudgeAgentPlayground.isAvailable()) {
-        agentLog('Puter AI is not available in this runtime.', 'err');
-        return;
-      }
-
-      input.value = '';
-      sendBtn.disabled = true;
-      _agentMessages.push({ role: 'user', content: prompt });
-      agentLog('You: ' + prompt, '');
-
-      try {
-        var response = await GrudgeAgentPlayground.chat(_agentMessages, {
-          model: (modelInput.value || '').trim() || undefined,
-          temperature: 0.2,
-          maxTokens: 1400,
-        }, {
-          onToolStart: function (name) { agentLog('Tool ▶ ' + name, ''); },
-          onToolEnd: function (name) { agentLog('Tool ✓ ' + name, 'ok'); },
-          onToolError: function (name, err) { agentLog('Tool ✗ ' + name + ' — ' + (err.error || 'error'), 'err'); },
-        });
-
-        _agentMessages.push({ role: 'assistant', content: response.text });
-        agentLog('Agent: ' + response.text, 'ok');
-      } catch (e) {
-        agentLog('Agent error: ' + e.message, 'err');
-      } finally {
-        sendBtn.disabled = false;
-      }
-    }
-
-    // ── Boot ──
-    window.addEventListener('load', initConnector);
-  </script>
+  <script src="js/editor-main.js"></script>
 </body>
 </html>
