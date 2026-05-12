@@ -74,6 +74,13 @@
 
   function bootstrapTabFromPath() {
     var path = (window.location.pathname || '/').toLowerCase();
+
+    // Dedicated /auth route — shows focused login page, supports ?redirect=
+    if (path === '/auth') {
+      showAuthPage();
+      return;
+    }
+
     var map = {
       '/animations': 'animations',
       '/character-studio': 'characterstudio',
@@ -86,6 +93,126 @@
     };
     var tab = map[path] || 'dashboard';
     switchTab(tab);
+  }
+
+  // ── Dedicated Auth Page ──
+
+  function showAuthPage() {
+    // Hide the full editor UI, show the auth page
+    var mainEl = document.querySelector('.main');
+    var headerEl = document.querySelector('.header');
+    if (mainEl) mainEl.style.display = 'none';
+    if (headerEl) headerEl.style.display = 'none';
+
+    // Create auth page container
+    var authDiv = document.createElement('div');
+    authDiv.id = 'auth-page';
+    authDiv.innerHTML = '<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:20px;">' +
+      '<div style="max-width:420px; width:100%; text-align:center;">' +
+        '<div style="margin-bottom:24px;">' +
+          '<div style="font-size:48px; margin-bottom:12px;">&#9876;</div>' +
+          '<h1 style="font-size:22px; color:var(--accent); font-weight:700; margin-bottom:4px;">Sign in to Grudge Studio</h1>' +
+          '<p style="font-size:13px; color:var(--text-dim); line-height:1.5;">Authenticate with your Puter account to access Grudge Studio services. Your Grudge ID links all games, saves, and assets.</p>' +
+        '</div>' +
+        '<div id="auth-status" style="margin-bottom:16px;"></div>' +
+        '<button class="btn primary" id="auth-page-btn" onclick="authPageSignIn()" style="width:100%; padding:12px; font-size:14px;">' +
+          'Sign in with Puter' +
+        '</button>' +
+        '<div style="margin-top:16px;">' +
+          '<p style="font-size:11px; color:var(--text-dim);">New here? The sign-in popup lets you create an account with Google, GitHub, or username/password. Your Grudge ID is minted automatically.</p>' +
+        '</div>' +
+        '<div id="auth-error" style="margin-top:12px; color:var(--red); font-size:12px; display:none;"></div>' +
+        '<div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px;">' +
+          '<p style="font-size:10px; color:var(--text-dim);">Grudge Studio · by Racalvin The Pirate King</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+    document.body.appendChild(authDiv);
+
+    // If already signed in, show status and handle redirect
+    if (window.GrudgeAuth && GrudgeAuth.isSignedIn()) {
+      authPageShowSignedIn(GrudgeAuth.getUser());
+    }
+  }
+
+  window.authPageSignIn = async function () {
+    var btn = document.getElementById('auth-page-btn');
+    var errEl = document.getElementById('auth-error');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in\u2026'; }
+    if (errEl) errEl.style.display = 'none';
+
+    try {
+      // Initialize connector if not already
+      if (!GrudgeConnector.isReady()) {
+        await GrudgeConnector.init({ onLog: function () {} });
+      }
+      var user = await GrudgeConnector.signIn();
+      authPageShowSignedIn(user);
+    } catch (e) {
+      if (errEl) {
+        errEl.textContent = 'Sign-in failed: ' + e.message;
+        errEl.style.display = 'block';
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign in with Puter'; }
+    }
+  };
+
+  function authPageShowSignedIn(user) {
+    var statusEl = document.getElementById('auth-status');
+    var btn = document.getElementById('auth-page-btn');
+    var name = (user && (user.username || user.displayName)) || 'Unknown';
+    var grudgeId = (user && user.grudgeId) || '';
+
+    if (statusEl) {
+      statusEl.innerHTML = '<div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px;">' +
+        '<div style="color:var(--green); font-size:13px; font-weight:600; margin-bottom:4px;">&#10003; Signed in</div>' +
+        '<div style="font-size:14px; color:var(--accent); font-weight:600;">' + escapeHtml(name) + '</div>' +
+        (grudgeId ? '<div style="font-size:11px; color:var(--text-dim); font-family:monospace;">' + escapeHtml(grudgeId) + '</div>' : '') +
+      '</div>';
+    }
+
+    // Check for ?redirect= parameter
+    var params = new URLSearchParams(window.location.search);
+    var redirectUrl = params.get('redirect') || params.get('returnTo') || params.get('next');
+
+    if (redirectUrl) {
+      // Validate the redirect is to a Grudge domain
+      try {
+        var u = new URL(redirectUrl);
+        var allowed = /(grudge-studio\.com|grudgewarlords\.com|grudgeplatform\.io|vercel\.app|puter\.site|grudgestudio\.com)$/i;
+        if (allowed.test(u.hostname) || u.hostname === 'localhost') {
+          // Append token as hash fragment (not query) for security
+          var token = GrudgeAuth.getToken();
+          if (token) {
+            var sep = redirectUrl.includes('#') ? '&' : '#';
+            redirectUrl += sep + 'grudge_token=' + encodeURIComponent(token);
+          }
+          if (statusEl) {
+            statusEl.innerHTML += '<p style="font-size:12px; color:var(--text-dim); margin-top:8px;">Redirecting to ' + escapeHtml(u.hostname) + '\u2026</p>';
+          }
+          setTimeout(function () { window.location.href = redirectUrl; }, 1500);
+          return;
+        }
+      } catch (e) { /* invalid URL, ignore redirect */ }
+    }
+
+    // No redirect — offer to continue to editor or go to other Grudge apps
+    if (btn) {
+      btn.textContent = 'Continue to Editor';
+      btn.disabled = false;
+      btn.className = 'btn primary';
+      btn.onclick = function () {
+        var authPage = document.getElementById('auth-page');
+        if (authPage) authPage.remove();
+        var mainEl = document.querySelector('.main');
+        var headerEl = document.querySelector('.header');
+        if (mainEl) mainEl.style.display = 'flex';
+        if (headerEl) headerEl.style.display = 'flex';
+        history.replaceState({}, '', '/');
+        switchTab('dashboard');
+        refreshStatus();
+      };
+    }
   }
 
   // ── Status display ──
