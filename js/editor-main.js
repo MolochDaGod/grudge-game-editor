@@ -116,15 +116,14 @@
         '</div>' +
         '<div id="auth-status" style="margin-bottom:16px;"></div>' +
         '<button class="btn primary" id="auth-page-btn" onclick="authPageSignIn()" style="width:100%; padding:12px; font-size:14px;">' +
-          'Sign in with Puter' +
+          'Sign in to Grudge Studio' +
         '</button>' +
+        '<p style="font-size:10px; color:var(--text-dim); margin-top:8px;">Google &amp; GitHub available inside the sign-in popup</p>' +
         '<div style="display:flex; gap:8px; margin-top:12px;">' +
-          '<button class="btn" onclick="authOAuth(\'google\')" style="flex:1; padding:10px; font-size:12px;">Google</button>' +
-          '<button class="btn" onclick="authOAuth(\'discord\')" style="flex:1; padding:10px; font-size:12px;">Discord</button>' +
-          '<button class="btn" onclick="authOAuth(\'github\')" style="flex:1; padding:10px; font-size:12px;">GitHub</button>' +
+          '<button class="btn" onclick="authOAuth(\'discord\')" style="flex:1; padding:10px; font-size:12px;">&#128172; Sign in with Discord</button>' +
         '</div>' +
         '<div style="margin-top:16px;">' +
-          '<p style="font-size:11px; color:var(--text-dim);">Sign in with Puter (recommended) or use Google, Discord, or GitHub. Your Grudge ID is minted automatically.</p>' +
+          '<p style="font-size:11px; color:var(--text-dim);">The sign-in popup supports Google, GitHub, and username/password. Discord uses a separate OAuth flow. All methods create a single Grudge account with linked connectors and cloud storage.</p>' +
         '</div>' +
         '<div id="auth-error" style="margin-top:12px; color:var(--red); font-size:12px; display:none;"></div>' +
         '<div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px;">' +

@@ -126,23 +126,40 @@ window.GrudgeAuth = (function () {
       return null;
     },
 
-    /** Sign in via Puter, then link to Grudge ID */
+    /**
+     * Sign in via Puter (primary), then exchange for Grudge JWT.
+     *
+     * Puter's sign-in popup natively supports Google and GitHub. The user
+     * picks their provider inside the popup — we don't need separate OAuth
+     * buttons for those. After Puter auth, we POST the Puter UUID + email
+     * to id.grudge-studio.com/auth/puter to get/create a Grudge account.
+     *
+     * Flow: Puter popup → puter.auth.getUser() → POST /auth/puter → Grudge JWT
+     * Email: Puter returns the email from whichever provider the user picked
+     *        (Google email, GitHub email, or Puter account email).
+     */
     signIn: async function () {
       if (!window.puter) throw new Error('Puter SDK not loaded');
 
-      // Step 1: Puter sign-in
+      // Step 1: Puter sign-in (Google/GitHub/username all handled in popup)
       if (!puter.auth.isSignedIn()) {
         await puter.auth.signIn();
       }
       _puterUser = await puter.auth.getUser();
       emit('puter-ready', _puterUser);
 
-      // Step 2: Exchange Puter identity for Grudge JWT
+      // Step 2: Exchange Puter identity for Grudge JWT.
+      // The email comes from whatever provider the user chose inside Puter
+      // (Google gives verified email, GitHub gives primary email, etc.).
       try {
         var data = await apiPost('/auth/puter', {
           puterUuid: _puterUser.uuid,
           puterUsername: _puterUser.username,
           email: _puterUser.email || null,
+          emailVerified: !!_puterUser.email_verified,
+          // Pass the Puter auth token so the backend can verify it server-side
+          // and use it to create a user-scoped Puter instance for cloud storage.
+          puterToken: window.puter.authToken || null,
         });
 
         if (data.token) {
@@ -150,8 +167,10 @@ window.GrudgeAuth = (function () {
             grudgeId: data.grudgeId || data.grudge_id,
             username: data.username || _puterUser.username,
             displayName: data.displayName || _puterUser.username,
+            email: _puterUser.email || data.email || null,
             puterUuid: _puterUser.uuid,
             isNew: !!data.isNewUser,
+            connectors: data.connectors || ['puter'],
           };
           storeSession(data.token, user);
           emit('login', user);
@@ -163,15 +182,18 @@ window.GrudgeAuth = (function () {
           var guest = await apiPost('/auth/guest', {
             puterUuid: _puterUser.uuid,
             puterUsername: _puterUser.username,
+            email: _puterUser.email || null,
           });
           if (guest.token) {
             var guestUser = {
               grudgeId: guest.grudgeId || guest.grudge_id,
               username: guest.username || 'Guest_' + _puterUser.username,
               displayName: guest.displayName || _puterUser.username,
+              email: _puterUser.email || null,
               puterUuid: _puterUser.uuid,
               isNew: true,
               isGuest: true,
+              connectors: ['puter'],
             };
             storeSession(guest.token, guestUser);
             emit('login', guestUser);
@@ -183,6 +205,30 @@ window.GrudgeAuth = (function () {
         emit('error', { message: e.message, phase: 'puter-auth' });
         throw e;
       }
+    },
+
+    /**
+     * Sign in via Discord OAuth (separate flow — Puter doesn't support Discord).
+     * Redirects to id.grudge-studio.com/auth/discord which:
+     *   1. Handles Discord OAuth2 code exchange
+     *   2. Creates/finds Grudge account by Discord ID + email
+     *   3. Mints a guest Puter ID for cloud storage (if user doesn't have one)
+     *   4. Returns JWT + redirect with token in hash fragment
+     */
+    signInDiscord: function (redirectUrl) {
+      var redirect = redirectUrl || window.location.href;
+      window.location.href = AUTH_URL + '/auth/discord?redirect=' + encodeURIComponent(redirect);
+    },
+
+    /**
+     * Link an additional connector (Google/Discord/GitHub/Solana) to the
+     * current Grudge account. The user must already be signed in.
+     */
+    linkConnector: async function (provider) {
+      if (!_token) throw new Error('Must be signed in to link a connector');
+      if (provider === 'puter') return this.linkPuter();
+      // For OAuth providers, redirect to the link endpoint
+      window.location.href = AUTH_URL + '/auth/' + provider + '/link?token=' + encodeURIComponent(_token) + '&redirect=' + encodeURIComponent(window.location.href);
     },
 
     /** Sign out from both Puter and Grudge */
