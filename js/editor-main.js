@@ -118,8 +118,13 @@
         '<button class="btn primary" id="auth-page-btn" onclick="authPageSignIn()" style="width:100%; padding:12px; font-size:14px;">' +
           'Sign in with Puter' +
         '</button>' +
+        '<div style="display:flex; gap:8px; margin-top:12px;">' +
+          '<button class="btn" onclick="authOAuth(\'google\')" style="flex:1; padding:10px; font-size:12px;">Google</button>' +
+          '<button class="btn" onclick="authOAuth(\'discord\')" style="flex:1; padding:10px; font-size:12px;">Discord</button>' +
+          '<button class="btn" onclick="authOAuth(\'github\')" style="flex:1; padding:10px; font-size:12px;">GitHub</button>' +
+        '</div>' +
         '<div style="margin-top:16px;">' +
-          '<p style="font-size:11px; color:var(--text-dim);">New here? The sign-in popup lets you create an account with Google, GitHub, or username/password. Your Grudge ID is minted automatically.</p>' +
+          '<p style="font-size:11px; color:var(--text-dim);">Sign in with Puter (recommended) or use Google, Discord, or GitHub. Your Grudge ID is minted automatically.</p>' +
         '</div>' +
         '<div id="auth-error" style="margin-top:12px; color:var(--red); font-size:12px; display:none;"></div>' +
         '<div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px;">' +
@@ -134,6 +139,14 @@
       authPageShowSignedIn(GrudgeAuth.getUser());
     }
   }
+
+  window.authOAuth = function (provider) {
+    var authBase = 'https://id.grudge-studio.com/auth/';
+    var params = new URLSearchParams(window.location.search);
+    var redirect = params.get('redirect') || params.get('returnTo') || params.get('next') || window.location.origin;
+    var url = authBase + provider + '?redirect=' + encodeURIComponent(redirect);
+    window.location.href = url;
+  };
 
   window.authPageSignIn = async function () {
     var btn = document.getElementById('auth-page-btn');

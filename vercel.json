@@ -5,6 +5,10 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/api/oauth-google", "destination": "https://id.grudge-studio.com/auth/google" },
+    { "source": "/api/oauth-discord", "destination": "https://id.grudge-studio.com/auth/discord" },
+    { "source": "/api/oauth-github", "destination": "https://id.grudge-studio.com/auth/github" },
+    { "source": "/api/auth/:path*", "destination": "https://id.grudge-studio.com/auth/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
